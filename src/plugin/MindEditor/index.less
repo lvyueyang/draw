@@ -1,0 +1,50 @@
+.x6-mind {
+  &-draw {
+    * {
+      box-sizing: border-box;
+    }
+
+    .x6-node-selected {
+      position: relative;
+      outline: 1px solid #096dd9;
+      outline-offset: 2px;
+    }
+  }
+
+  &-node {
+    white-space: nowrap;
+    display: inline-block;
+    padding: 10px 15px;
+    border-radius: 3px;
+    background: #ccc;
+    color: #333;
+  }
+
+  &-root-node {
+    background: #333;
+    color: #fff;
+    padding: 15px 30px;
+    font-size: 18px;
+  }
+
+  &-input {
+    position: fixed;
+    left: 100px;
+    top: 100px;
+    min-width: 100px;
+    min-height: 40px;
+    border: 1px solid #333;
+    background: #fff;
+    padding: 8px 10px;
+    display: none;
+    outline: none;
+    border-radius: 3px;
+
+    &.show {
+      display: block;
+    }
+    &.hide{
+      display: none !important;
+    }
+  }
+}
