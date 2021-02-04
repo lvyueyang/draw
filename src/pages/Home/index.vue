@@ -1,6 +1,8 @@
 <template>
   <div>
-    <a-button>哈哈哈</a-button>
+    <router-link to="/editor">
+      <a-button>哈哈哈</a-button>
+    </router-link>
   </div>
 </template>
 <script>

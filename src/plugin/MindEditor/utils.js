@@ -44,7 +44,7 @@ export const mindDataFormat = (result) => {
   const traverse = (data) => {
     // console.log(data)
     if (data) {
-      if (data.isRoot()) {
+      if (data.isRoot) {
         model.nodes.push({
           id: `${data.id}`,
           x: data.x,
@@ -53,7 +53,7 @@ export const mindDataFormat = (result) => {
           html: 'mindNode',
           data: {
             root: true,
-            value: data.data.value,
+            value: data.value,
             className: 'x6-mind-root-node'
           },
           ports: {
@@ -75,7 +75,7 @@ export const mindDataFormat = (result) => {
           shape: 'html',
           html: 'mindNode',
           data: {
-            value: data.data.value
+            value: data.value
           },
           ports: {
             groups: cloneDeep(portsGroups),
@@ -97,7 +97,7 @@ export const mindDataFormat = (result) => {
           source: `${data.id}`,
           target: `${item.id}`,
           connector: {
-            name: 'smooth'
+            name: 'jumpover'
           },
           attrs: {
             line: {
@@ -112,4 +112,37 @@ export const mindDataFormat = (result) => {
   }
   traverse(result)
   return model
+}
+
+// 创建用于计算节点宽度的容器
+export const createHtmlNodeBody = () => {
+  const id = 'MindEditorHtmlNodeWrap'
+  const style = `
+    position: absolute;
+    left: -9999;
+    top: -9999;
+    visibility: hidden;
+  `
+  if (document.querySelector(`#${id}`)) {
+    return document.querySelector(`#${id}`)
+  }
+  const nodeBody = document.createElement('div')
+  nodeBody.setAttribute('id', id)
+  nodeBody.setAttribute('style', style)
+  document.body.appendChild(nodeBody)
+  return nodeBody
+}
+
+// 计算节点尺寸
+export const computedElementSize = (element) => {
+  const htmlNodeWrap = createHtmlNodeBody()
+  const copyElement = element.cloneNode(true)
+  htmlNodeWrap.appendChild(copyElement)
+  const width = copyElement.offsetWidth
+  const height = copyElement.offsetHeight
+  htmlNodeWrap.removeChild(copyElement)
+  return {
+    width,
+    height
+  }
 }

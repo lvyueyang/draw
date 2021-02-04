@@ -2370,7 +2370,7 @@ d3-force@^2.0.1:
 
 dagre@^0.8.5:
   version "0.8.5"
-  resolved "https://registry.npm.taobao.org/dagre/download/dagre-0.8.5.tgz#ba30b0055dac12b6c1fcc247817442777d06afee"
+  resolved "http://npm.fe.sensorsdata.cn/dagre/-/dagre-0.8.5.tgz#ba30b0055dac12b6c1fcc247817442777d06afee"
   integrity sha1-ujCwBV2sErbB/MJHgXRCd30Gr+4=
   dependencies:
     graphlib "^2.1.8"
@@ -2681,6 +2681,15 @@ dotenv@^8.2.0:
   version "8.2.0"
   resolved "https://registry.npm.taobao.org/dotenv/download/dotenv-8.2.0.tgz#97e619259ada750eea3e4ea3e26bceea5424b16a"
   integrity sha1-l+YZJZradQ7qPk6j4mvO6lQksWo=
+
+draw@^0.0.0:
+  version "0.0.0"
+  resolved "http://npm.fe.sensorsdata.cn/draw/-/draw-0.0.0.tgz#2929c93fcaaf09f6b5eb2d83d12d5a9ac5fdf6c4"
+  integrity sha1-KSnJP8qvCfa16y2D0S1amsX99sQ=
+  dependencies:
+    polygon "0.0.9"
+    segseg "~0.2.0"
+    vec2 "~1.3.2"
 
 duplexer@^0.1.1:
   version "0.1.2"
@@ -6200,6 +6209,14 @@ pnp-webpack-plugin@^1.6.4:
   dependencies:
     ts-pnp "^1.1.6"
 
+polygon@0.0.9:
+  version "0.0.9"
+  resolved "http://npm.fe.sensorsdata.cn/polygon/-/polygon-0.0.9.tgz#983b6394df7de825baae37c26e84fee34a00fae5"
+  integrity sha1-mDtjlN996CW6rjfCboT+40oA+uU=
+  dependencies:
+    segseg "~0.2.0"
+    vec2 "~1.3.2"
+
 polyline-miter-util@^1.0.1:
   version "1.0.1"
   resolved "https://registry.npm.taobao.org/polyline-miter-util/download/polyline-miter-util-1.0.1.tgz#b693f2389ea0ded36a6bcf5ecd2ece4b6917d957"
@@ -7140,6 +7157,11 @@ scroll-into-view-if-needed@^2.2.25:
   integrity sha1-5JF9oMggE1/2Wtb35LfXr1aMTxM=
   dependencies:
     compute-scroll-into-view "^1.0.16"
+
+segseg@~0.2.0:
+  version "0.2.2"
+  resolved "http://npm.fe.sensorsdata.cn/segseg/-/segseg-0.2.2.tgz#9620ac8d60d2f098c874b945c91cddfaffe3e3d7"
+  integrity sha1-liCsjWDS8JjIdLlFyRzd+v/j49c=
 
 select-hose@^2.0.0:
   version "2.0.0"
@@ -8248,6 +8270,11 @@ vary@~1.1.2:
   version "1.1.2"
   resolved "https://registry.npm.taobao.org/vary/download/vary-1.1.2.tgz#2299f02c6ded30d4a5961b0b9f74524a18f634fc"
   integrity sha1-IpnwLG3tMNSllhsLn3RSShj2NPw=
+
+vec2@~1.3.2:
+  version "1.3.4"
+  resolved "http://npm.fe.sensorsdata.cn/vec2/-/vec2-1.3.4.tgz#f716846649243dc7d9136842d7e42a694e5779a6"
+  integrity sha1-9xaEZkkkPcfZE2hC1+QqaU5XeaY=
 
 vendors@^1.0.0:
   version "1.0.4"

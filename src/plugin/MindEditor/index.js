@@ -1,7 +1,7 @@
 import { Graph, Shape } from '@antv/x6'
-import Hierarchy from '@antv/hierarchy'
 import { maxBy } from 'lodash'
-import { uuid, mindDataFormat } from '@/plugin/MindEditor/utils'
+import dagre from 'dagre'
+import { uuid, mindDataFormat, createHtmlNodeBody, computedElementSize } from '@/plugin/MindEditor/utils'
 
 const NODE_H_SPACING = 100 // 节点间水平间距
 const NODE_V_SPACING = 30 // 节点间垂直间距
@@ -12,10 +12,15 @@ class MindEditor {
    * @param {HTMLElement} options.container 容器节点
    * */
   constructor (options) {
+    console.clear()
     this.options = options
+    this.layoutOptions = {
+      rankdir: 'LR', // LR RL TB BT
+      ...options.layoutOptions
+    }
     this.options.container.classList.add('x6-mind-draw')
     this.editorInput = null
-    this.createHtmlNodeBody()
+    createHtmlNodeBody()
     this.registerNode()
     this.graph = this.initEditor()
 
@@ -94,30 +99,7 @@ class MindEditor {
         }
       ]
     }
-    const result = Hierarchy.mindmap(data, {
-      direction: 'H',
-
-      // getHeight (d) {
-      //   console.log(d)
-      //   return 16
-      // },
-      // getWidth () {
-      //   return 16
-      // },
-      getHGap (node) {
-        return 100
-      },
-      getVGap () {
-        return 70
-      },
-      getSubTreeSep (d) {
-        if (!d.children || !d.children.length) {
-          return 0
-        }
-        return 105
-      }
-    })
-    return mindDataFormat(result)
+    return mindDataFormat(data)
   }
 
   init () {
@@ -136,6 +118,7 @@ class MindEditor {
     // 添加根节点
     // this.createRootNode()
     this.editorInput = this.createInput()
+    this.layout()
     // 居中布局
     graph.centerContent()
     // 启用历史记录
@@ -144,39 +127,83 @@ class MindEditor {
     this.keyboardEvent()
     // 添加事件监听
     this.event()
+
+    // const allNodes = graph.getNodes()
+    // for (const node of allNodes) {
+    //   console.log(node.size())
+    //   const { width, height } = node.size()
+    //   node.resize(width, height)
+    // }
   }
 
-  // 创建用于计算节点宽度的容器
-  createHtmlNodeBody () {
-    const id = 'MindEditorHtmlNodeWrap'
-    const style = `
-      position: absolute;
-      left: -9999;
-      top: -9999;
-      visibility: hidden;
-    `
-    if (document.querySelector(`#${id}`)) {
-      return document.querySelector(`#${id}`)
-    }
-    const nodeBody = document.createElement('div')
-    nodeBody.setAttribute('id', id)
-    nodeBody.setAttribute('style', style)
-    document.body.appendChild(nodeBody)
-    return nodeBody
-  }
+  layout () {
+    const { graph, layoutOptions } = this
+    const { rankdir } = layoutOptions
+    const nodes = graph.getNodes()
+    const edges = graph.getEdges()
+    const g = new dagre.graphlib.Graph()
+    g.setGraph({ rankdir, nodesep: 40, ranksep: 40 })
+    g.setDefaultEdgeLabel(() => ({}))
+    nodes.forEach((node) => {
+      const { width, height } = node.size()
+      g.setNode(node.id, { width, height })
+    })
 
-  // 计算节点尺寸
-  computedElementSize (element) {
-    const htmlNodeWrap = this.createHtmlNodeBody()
-    const copyElement = element.cloneNode(true)
-    htmlNodeWrap.appendChild(copyElement)
-    const width = copyElement.offsetWidth
-    const height = copyElement.offsetHeight
-    htmlNodeWrap.removeChild(copyElement)
-    return {
-      width,
-      height
-    }
+    edges.forEach((edge) => {
+      const source = edge.getSource()
+      const target = edge.getTarget()
+      g.setEdge(source.cell, target.cell)
+    })
+
+    dagre.layout(g)
+
+    graph.freeze()
+
+    g.nodes().forEach((id) => {
+      const node = graph.getCell(id)
+      if (node) {
+        const pos = g.node(id)
+        node.position(pos.x, pos.y)
+      }
+    })
+
+    edges.forEach((edge) => {
+      const source = edge.getSourceNode()
+      const target = edge.getTargetNode()
+      const sourceBBox = source.getBBox()
+      const targetBBox = target.getBBox()
+
+      console.log(sourceBBox, targetBBox)
+      if ((rankdir === 'LR' || rankdir === 'RL') && sourceBBox.y !== targetBBox.y) {
+        const gap = rankdir === 'LR'
+          ? targetBBox.x - sourceBBox.x - sourceBBox.width
+          : -sourceBBox.x + targetBBox.x + targetBBox.width
+        const fix = rankdir === 'LR' ? sourceBBox.width : 0
+        const x = sourceBBox.x + fix + gap / 2
+        edge.setVertices([
+          { x, y: sourceBBox.center.y },
+          { x, y: targetBBox.center.y }
+        ])
+      } else if (
+        (rankdir === 'TB' || rankdir === 'BT') &&
+      sourceBBox.x !== targetBBox.x
+      ) {
+        const gap =
+        rankdir === 'TB'
+          ? targetBBox.y - sourceBBox.y - sourceBBox.height
+          : -sourceBBox.y + targetBBox.y + targetBBox.height
+        const fix = rankdir === 'TB' ? sourceBBox.height : 0
+        const y = sourceBBox.y + fix + gap / 2
+        edge.setVertices([
+          { x: sourceBBox.center.x, y },
+          { x: targetBBox.center.x, y }
+        ])
+      } else {
+        edge.setVertices([])
+      }
+    })
+
+    graph.unfreeze()
   }
 
   // 创建输入框
@@ -230,11 +257,8 @@ class MindEditor {
       const {
         width,
         height
-      } = this.computedElementSize(wrap)
-      console.log('registerNode', width, height)
-      setTimeout(() => {
-        node.size(width, height)
-      })
+      } = computedElementSize(wrap)
+      node.resize(width, height)
       return wrap
     }, overwrite)
   }
@@ -248,7 +272,7 @@ class MindEditor {
       source: source,
       target: target,
       connector: {
-        name: 'smooth'
+        name: 'rounded'
       },
       attrs: {
         line: {
@@ -530,14 +554,14 @@ class MindEditor {
       onBlur: (e) => {
         const value = e.target.innerHTML
         node.show()
-        node.setData({
+        node.updateData({
           value
         })
         wrap.innerHTML = value
         const {
           width,
           height
-        } = this.computedElementSize(wrap)
+        } = computedElementSize(wrap)
         node.size(width, height)
         this.editorInput.hide()
       }
