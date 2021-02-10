@@ -1,4 +1,5 @@
 import { cloneDeep } from 'lodash'
+
 const createUUID = () => {
   let num = 0
   return () => {
@@ -19,74 +20,43 @@ export const mindDataFormat = (result) => {
     nodes: [],
     edges: []
   }
-  const portsGroups = {
-    LC: {
-      position: 'left',
-      attrs: {
-        circle: {
-          r: 0,
-          magnet: true,
-          strokeWidth: 0
-        }
-      }
-    },
-    RC: {
-      position: 'right',
-      attrs: {
-        circle: {
-          r: 0,
-          magnet: true,
-          strokeWidth: 0
-        }
-      }
-    }
-  }
   const traverse = (data) => {
-    // console.log(data)
     if (data) {
+      let width = data.width
+      let height = data.height
+      const { x, y, id } = data
+      // 计算宽高
+      if (!width || !height) {
+        const {
+          width: w,
+          height: h
+        } = htmlStringSize(data.value, data.isRoot ? 'x6-mind-root-node' : '')
+        width = width || w
+        height = height || h
+      }
+      const commonOption = {
+        id: `${id}`,
+        x,
+        y,
+        width,
+        height,
+        shape: 'html',
+        html: 'mindNode'
+      }
       if (data.isRoot) {
         model.nodes.push({
-          id: `${data.id}`,
-          x: data.x,
-          y: data.y,
-          shape: 'html',
-          html: 'mindNode',
+          ...commonOption,
           data: {
             root: true,
             value: data.value,
             className: 'x6-mind-root-node'
-          },
-          ports: {
-            groups: {
-              RC: cloneDeep(portsGroups.RC)
-            },
-            items: [
-              {
-                group: 'RC'
-              }
-            ]
           }
         })
       } else {
         model.nodes.push({
-          id: `${data.id}`,
-          x: data.x,
-          y: data.y,
-          shape: 'html',
-          html: 'mindNode',
+          ...commonOption,
           data: {
             value: data.value
-          },
-          ports: {
-            groups: cloneDeep(portsGroups),
-            items: [
-              {
-                group: 'LC'
-              },
-              {
-                group: 'RC'
-              }
-            ]
           }
         })
       }
@@ -96,9 +66,6 @@ export const mindDataFormat = (result) => {
         model.edges.push({
           source: `${data.id}`,
           target: `${item.id}`,
-          connector: {
-            name: 'jumpover'
-          },
           attrs: {
             line: {
               sourceMarker: false,
@@ -145,4 +112,12 @@ export const computedElementSize = (element) => {
     width,
     height
   }
+}
+
+// 计算 value 内容尺寸
+export const htmlStringSize = (str, className) => {
+  const wrap = document.createElement('div')
+  wrap.setAttribute('class', `x6-mind-node ${className}`)
+  wrap.innerHTML = str
+  return computedElementSize(wrap)
 }
