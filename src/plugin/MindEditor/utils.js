@@ -1,5 +1,3 @@
-import { cloneDeep } from 'lodash'
-
 const createUUID = () => {
   let num = 0
   return () => {
@@ -21,50 +19,38 @@ export const mindDataFormat = (result) => {
     edges: []
   }
   const traverse = (data) => {
-    if (data) {
-      let width = data.width
-      let height = data.height
-      const { x, y, id } = data
-      // 计算宽高
-      if (!width || !height) {
-        const {
-          width: w,
-          height: h
-        } = htmlStringSize(data.value, data.isRoot ? 'x6-mind-root-node' : '')
-        width = width || w
-        height = height || h
-      }
-      const commonOption = {
-        id: `${id}`,
-        x,
-        y,
-        width,
-        height,
-        shape: 'html',
-        html: 'mindNode'
-      }
-      if (data.isRoot) {
-        model.nodes.push({
-          ...commonOption,
-          data: {
-            root: true,
-            value: data.value,
-            className: 'x6-mind-root-node'
-          }
-        })
-      } else {
-        model.nodes.push({
-          ...commonOption,
-          data: {
-            value: data.value
-          }
-        })
-      }
+    if (!data) return
+    const { width, height, x, y, id, children, data: { isRoot, value }, vgap, hgap } = data
+    const commonOption = {
+      id: `${id}`,
+      x,
+      y,
+      width: width - (hgap * 2),
+      height: height - (vgap * 2),
+      shape: 'html',
+      html: 'mindNode'
     }
-    if (data.children) {
-      data.children.forEach((item) => {
+    if (isRoot) {
+      model.nodes.push({
+        ...commonOption,
+        data: {
+          root: true,
+          value: value,
+          className: 'x6-mind-root-node'
+        }
+      })
+    } else {
+      model.nodes.push({
+        ...commonOption,
+        data: {
+          value: value
+        }
+      })
+    }
+    if (children) {
+      children.forEach((item) => {
         model.edges.push({
-          source: `${data.id}`,
+          source: `${id}`,
           target: `${item.id}`,
           attrs: {
             line: {
@@ -120,4 +106,45 @@ export const htmlStringSize = (str, className) => {
   wrap.setAttribute('class', `x6-mind-node ${className}`)
   wrap.innerHTML = str
   return computedElementSize(wrap)
+}
+
+// 系统类型
+const getOSName = () => {
+  const { platform } = navigator
+  const isMac = platform.includes('Mac')
+  const isWin = platform.includes('Win')
+  if (isMac) return 'Mac'
+  if (isWin) return 'Win'
+  return 'other'
+}
+
+export const OSType = getOSName()
+
+// 挂载富文本编辑器
+export const createInput = () => {
+  let input = document.querySelector('#MindEditorInput')
+  if (input) return input
+  input = document.createElement('div')
+  input.setAttribute('id', 'MindEditorInput')
+  input.setAttribute('contenteditable', 'true')
+  input.classList.add('x6-mind-input')
+  document.body.appendChild(input)
+  input.show = ({ x, y, width, height, value, onBlur }) => {
+    input.classList.remove('hide')
+    input.style.left = x + 'px'
+    input.style.top = y + 'px'
+    input.style.minWidth = width + 'px'
+    input.style.minHeight = height + 'px'
+    input.classList.add('show')
+    input.innerHTML = value
+    input.focus()
+    input.onblur = e => {
+      if (typeof onBlur === 'function') onBlur(e)
+    }
+  }
+  input.hide = () => {
+    input.classList.remove('show')
+    input.classList.add('hide')
+  }
+  return input
 }

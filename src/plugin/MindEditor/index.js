@@ -1,16 +1,19 @@
-import { Graph, Shape } from '@antv/x6'
-import { maxBy } from 'lodash'
-import dagre from 'dagre'
+import { Graph, Shape, Addon } from '@antv/x6'
+import Hierarchy from '@antv/hierarchy'
+import { get } from 'lodash'
 import {
   uuid,
+  htmlStringSize,
   mindDataFormat,
   createHtmlNodeBody,
-  computedElementSize
-} from '@/plugin/MindEditor/utils'
+  computedElementSize,
+  createInput,
+  OSType
+} from './utils'
+import { BATCH, HIGHLIGHTER } from './constant'
 
-const NODE_H_SPACING = 100 // 节点间水平间距
-const NODE_V_SPACING = 30 // 节点间垂直间距
-
+// 对 mac 的操作做单独优化
+const isMAC = OSType === 'Mac'
 class MindEditor {
   /**
    * @param {Object} options
@@ -18,14 +21,53 @@ class MindEditor {
    * */
   constructor (options) {
     console.clear()
+    console.log(OSType)
+    // 参数格式化
     this.registerOptions(options)
-    this.options.container.classList.add('x6-mind-draw')
-    this.editorInput = null
+    // 主题
+    this.theme = {}
+    // 挂载富文本输入框
+    this.editorInput = createInput()
+    // 挂载计算节点宽度的容器
     createHtmlNodeBody()
+    // 注册自定义节点
     this.registerNode()
+    // 注册自定义高亮
+    this.registerHighlighter()
     this.graph = this.initEditor()
     this.init()
     console.log(this.graph)
+  }
+
+  defaultTheme () {
+    return {
+    }
+  }
+
+  setTheme () {
+
+  }
+
+  init () {
+    const { graph } = this
+    // 为挂载节点添加默认类名
+    graph.container.classList.add('x6-mind-draw', 'drag-meta')
+    // 添加初始数据并执行布局
+    const data = this.layout(this.initData())
+    graph.fromJSON(data)
+    this.updateEdgeLayout()
+    // 添加节点关系
+    this.nodeRelation()
+    // 居中布局
+    graph.centerContent()
+    // 启用历史记录
+    graph.enableHistory()
+    // 添加键盘事件
+    this.keyboardEvent()
+    // 添加事件监听
+    this.event()
+    // 注册节点拖动
+    this.registerDnd()
   }
 
   // 注册参数
@@ -41,12 +83,49 @@ class MindEditor {
     return defaultOptions
   }
 
+  // 注册高亮
+  registerHighlighter () {
+    try {
+      Graph.registerHighlighter(HIGHLIGHTER.APPEND_CHILDREN, {
+        highlight (cellView, magnet) {
+          magnet.classList.add('x6-mind-node-can-append')
+        },
+
+        unhighlight (cellView, magnet) {
+          magnet.classList.remove('x6-mind-node-can-append')
+        }
+      })
+    } catch (e) {
+    }
+  }
+
+  // 注册拖拽
+  registerDnd () {
+    const { graph } = this
+    const dnd = new Addon.Dnd({
+      target: graph,
+      validateNode: (node, options) => {
+        console.log(node, options)
+        return false
+      }
+      // getDropNode: (node, option) => {
+      //   console.log(node)
+      // }
+    })
+    this.dnd = dnd
+  }
+
   initEditor () {
     const { container, width, height } = this.options
     const graph = new Graph({
       container,
       width,
       height,
+      embedding: {
+        enabled: false
+      },
+      highlighting: {},
+      // 快捷键
       keyboard: {
         enabled: true,
         global: false
@@ -56,21 +135,22 @@ class MindEditor {
         enabled: true,
         rubberband: true // 启用框选
       },
-      showNodeSelectionBox: true,
-      showEdgeSelectionBox: true,
-      multiple: true, // 多选
+      showNodeSelectionBox: false,
+      showEdgeSelectionBox: false,
+      // 多选
+      multiple: true,
+      // 连线
       connecting: {
         anchor: 'midSide',
         connector: {
-          name: 'rounded'
+          name: 'rounded',
+          args: {
+            radius: 0.1
+          }
         }
       },
       grid: {
         size: 1
-      },
-      panning: {
-        enabled: true,
-        modifiers: 'alt'
       },
       // 剪切板
       clipboard: {
@@ -80,20 +160,28 @@ class MindEditor {
       resizing: {
         enabled: false
       },
-      // // 滚轮缩放
+      // 滚轮缩放
       // mousewheel: {
       //   enabled: true
-      // },
+      //   // modifiers: ['ctrl', 'meta']
+      // }
+      // 滚动画布。
       scroller: {
-        enabled: true
-        // pannable: true,
-        // pageVisible: true,
-        // pageBreak: false,
+        enabled: true,
+        pannable: true,
+        modifiers: isMAC ? 'meta' : 'ctrl',
+        pageVisible: false,
+        pageBreak: false,
+        autoResize: true
+      },
+      // 节点和边的交互行为
+      interacting: (view) => {
+        // 不允许移动节点
+        const nodeMovable = graph.isRootNode(view.cell) || graph.isSelected(view.cell)
+        return {
+          nodeMovable
+        }
       }
-      // mousewheel: {
-      //   enabled: false,
-      //   modifiers: ['ctrl', 'meta'],
-      // },
     })
     return graph
   }
@@ -106,44 +194,35 @@ class MindEditor {
       children: [
         {
           id: 'SubTreeNode1',
-          value: `节点${uuid()}`,
+          value: '节点1',
           children: [
             {
               id: 'SubTreeNode1.1',
-              value: `节点${uuid()}`
+              value: '节点1.1'
             },
             {
               id: 'SubTreeNode1.2',
-              value: `节点${uuid()}`
+              value: '节点1.2'
             }
           ]
         },
         {
           id: 'SubTreeNode2',
-          value: `节点${uuid()}`
+          value: '节点2',
+          children: [
+            {
+              id: 'SubTreeNode2.1',
+              value: '节点2.1'
+            },
+            {
+              id: 'SubTreeNode2.2',
+              value: '节点2.2'
+            }
+          ]
         }
       ]
     }
-    return mindDataFormat(data)
-  }
-
-  init () {
-    const { graph } = this
-    const data = this.initData()
-    graph.fromJSON(data)
-    this.nodeRelation()
-    // 添加根节点
-    // this.createRootNode()
-    this.editorInput = this.createInput()
-    // 居中布局
-    graph.centerContent()
-    // 启用历史记录
-    graph.enableHistory()
-    // 添加键盘事件
-    this.keyboardEvent()
-    // 添加事件监听
-    this.event()
-    this.layout()
+    return data
   }
 
   // 根据边的关系添加节点间父子关系，初始化时和
@@ -159,86 +238,120 @@ class MindEditor {
     }
   }
 
-  // 布局
-  layout () {
+  // 将 node 节点变形为树形
+  nodeFromTree () {
     const { graph } = this
-    const { layout } = this.defaultOptions
-    const { rankdir } = layout
     const rootNodes = graph.getRootNodes()
-    const edges = graph.getEdges()
-    const g = new dagre.graphlib.Graph()
-    g.setGraph({
-      rankdir
-      // nodesep: 40,
-      // ranksep: 80,
-      // edgesep: 40,
-      // marginx: 20,
-      // marginy: 40,
-      // ranker: 'network-simplex'
-    })
-    g.setDefaultEdgeLabel(() => ({}))
-    const setNode = (source) => {
-      const { width, height } = source.size()
-      g.setNode(source.id, { width, height })
-      source.eachChild(node => {
-        if (node.isNode()) {
-          setNode(node)
-          // 连线
-          g.setEdge(source.id, node.id)
-        }
-      })
+    const data = {
+      root: {}
     }
-    rootNodes.forEach(node => {
-      setNode(node)
-    })
-    // edges.forEach(edge => {
-    //   const source = edge.getSource()
-    //   const target = edge.getTarget()
-    //   g.setEdge(source.cell, target.cell)
-    // })
-    dagre.layout(g)
+    const setData = (node, data) => {
+      const { width, height, x, y } = node.getBBox()
+      if (!node.isNode()) return
+      const value = get(node.data, 'value')
+      const children = node.getChildren()
+      const nodeInfo = {
+        id: node.id,
+        value,
+        width,
+        height,
+        x,
+        y
+      }
+      // 是否有子节点
+      if (Array.isArray(children)) {
+        nodeInfo.children = []
+      }
+      // 是否是根节点
+      if (!Array.isArray(data)) {
+        nodeInfo.isRoot = graph.isRootNode(node)
+        data.root = nodeInfo
+      } else {
+        data.push(nodeInfo)
+      }
+      if (Array.isArray(children)) {
+        children.forEach(node => {
+          setData(node, nodeInfo.children)
+        })
+      }
+    }
+    setData(rootNodes[0], data)
+    return data.root
+  }
 
-    graph.freeze()
-
-    g.nodes().forEach(id => {
-      console.log(id)
-      const node = graph.getCell(id)
-      if (node) {
-        const pos = g.node(id)
-        console.log(pos)
-        node.position(pos.x, pos.y)
+  // 布局
+  layout (data) {
+    const layoutData = Hierarchy.mindmap(data, {
+      direction: 'H', // H / V / LR / RL / TB / BT
+      getId (d) {
+        return d.id
+      },
+      getHeight (d) {
+        if (d.height) return d.height
+        const { height } = htmlStringSize(d.value, d.isRoot ? 'x6-mind-root-node' : '')
+        return height
+      },
+      getWidth (d) {
+        if (d.width) return d.width
+        const { width } = htmlStringSize(d.value, d.isRoot ? 'x6-mind-root-node' : '')
+        return width
+      },
+      getHGap () {
+        return 40
+      },
+      getVGap () {
+        return 10
+      },
+      getSide: () => {
+        return 'right'
       }
     })
+    const model = mindDataFormat(layoutData)
 
-    edges.forEach(edge => {
+    return model
+  }
+
+  // 更新节点布局
+  updateNodeLayout () {
+    const { graph } = this
+    const data = this.nodeFromTree()
+    const { nodes } = this.layout(data)
+    for (const { id, x, y } of nodes) {
+      const node = graph.getCellById(id)
+      node.position(x, y)
+    }
+  }
+
+  // 更新边布局
+  updateEdgeLayout () {
+    const { graph } = this
+    const edges = graph.getEdges()
+    const { rankdir: dir } = this.defaultOptions.layout
+    edges.forEach((edge) => {
       const source = edge.getSourceNode()
       const target = edge.getTargetNode()
       const sourceBBox = source.getBBox()
       const targetBBox = target.getBBox()
-      source.addChild(target)
-      if (
-        (rankdir === 'LR' || rankdir === 'RL') &&
-        sourceBBox.y !== targetBBox.y
-      ) {
+      if ((dir === 'LR' || dir === 'RL') && sourceBBox.y !== targetBBox.y) {
         const gap =
-          rankdir === 'LR'
+          dir === 'LR'
             ? targetBBox.x - sourceBBox.x - sourceBBox.width
             : -sourceBBox.x + targetBBox.x + targetBBox.width
-        const fix = rankdir === 'LR' ? sourceBBox.width : 0
+        const fix = dir === 'LR' ? sourceBBox.width : 0
         const x = sourceBBox.x + fix + gap / 2
         edge.setVertices([
           { x, y: sourceBBox.center.y },
           { x, y: targetBBox.center.y }
         ])
       } else if (
-        (rankdir === 'TB' || rankdir === 'BT') &&
+        (dir === 'TB' || dir === 'BT') &&
         sourceBBox.x !== targetBBox.x
       ) {
         const gap =
-          rankdir === 'TB'
+          dir === 'TB'
             ? targetBBox.y - sourceBBox.y - sourceBBox.height
             : -sourceBBox.y + targetBBox.y + targetBBox.height
-        const fix = rankdir === 'TB' ? sourceBBox.height : 0
+        const fix = dir === 'TB' ? sourceBBox.height : 0
         const y = sourceBBox.y + fix + gap / 2
         edge.setVertices([
           { x: sourceBBox.center.x, y },
@@ -248,35 +361,15 @@ class MindEditor {
         edge.setVertices([])
       }
     })
-
-    graph.unfreeze()
   }
 
-  // 创建输入框
-  createInput () {
-    const input = document.createElement('div')
-    input.setAttribute('id', 'MindEditorInput')
-    input.setAttribute('contenteditable', 'true')
-    input.classList.add('x6-mind-input')
-    document.body.appendChild(input)
-    input.show = ({ x, y, width, height, value, onBlur }) => {
-      input.classList.remove('hide')
-      input.style.left = x + 'px'
-      input.style.top = y + 'px'
-      input.style.minWidth = width + 'px'
-      input.style.minHeight = height + 'px'
-      input.classList.add('show')
-      input.innerHTML = value
-      input.focus()
-      input.onblur = e => {
-        if (typeof onBlur === 'function') onBlur(e)
-      }
-    }
-    input.hide = () => {
-      input.classList.remove('show')
-      input.classList.add('hide')
-    }
-    return input
+  // 更新布局
+  updateLayout () {
+    const { graph } = this
+    graph.startBatch(BATCH.UPDATE_LAYOUT)
+    this.updateNodeLayout()
+    this.updateEdgeLayout()
+    graph.stopBatch(BATCH.UPDATE_LAYOUT)
   }
 
   // 注册自定义节点
@@ -405,6 +498,7 @@ class MindEditor {
    * */
   appendNode (parent, children, index) {
     const { graph } = this
+    graph.startBatch(BATCH.APPEND_CHILDREN_NODE)
     parent.insertChild(children, index)
     graph.resetSelection(children)
     // 添加连线
@@ -414,18 +508,22 @@ class MindEditor {
     })
     graph.addEdge(newEdge)
     // 布局
-    this.layout()
+    this.updateLayout()
+    graph.stopBatch(BATCH.APPEND_CHILDREN_NODE)
   }
 
   // 添加子节点
   appendChildren () {
+    const { graph } = this
     const selectNode = this.getSelectLastNode()
     if (!selectNode) return
     const { x, y } = selectNode.getBBox()
+    graph.startBatch(BATCH.APPEND_CHILDREN)
     // 创建新节点
     const newNode = this.createNode(`节点 ${uuid()}`, { x, y })
     // 添加
     this.appendNode(selectNode, newNode)
+    graph.stopBatch(BATCH.APPEND_CHILDREN)
   }
 
   // 添加兄弟节点
@@ -437,22 +535,26 @@ class MindEditor {
     if (isRootNode) return false
     // 获取父节点
     const parentNode = selectNode.getParent()
-    // 创建新节点
-    const newNode = this.createNode(`节点 ${uuid()}`)
     // 获取选中节点索引
     const index = parentNode.getChildIndex(selectNode)
+    graph.startBatch(BATCH.APPEND_BROTHER)
+    // 创建新节点
+    const newNode = this.createNode(`节点 ${uuid()}`)
     // 添加
     this.appendNode(parentNode, newNode, index + 1)
-    console.log(parentNode.getChildren().map(item => (item.data ? item.data.value : '')))
+    graph.stopBatch(BATCH.APPEND_BROTHER)
   }
 
   // 删除选中节点
   removeSelectNodes () {
     const { graph } = this
+    graph.startBatch(BATCH.REMOVE_NODES)
     const cells = graph
       .getSelectedCells()
       .filter(item => !graph.isRootNode(item))
     graph.removeCells(cells)
+    this.updateLayout()
+    graph.stopBatch(BATCH.REMOVE_NODES)
   }
 
   // 复制选中节点
@@ -517,26 +619,85 @@ class MindEditor {
         node.updateAttrs('width', width)
         node.updateAttrs('height', height)
         this.editorInput.hide()
-        this.layout()
+        this.updateLayout()
       }
     })
+  }
+
+  // 拖动节点时添加或者排序节点
+  dropNode (opt, appendChildrenHighlightView, unhighlight) {
+    const { graph } = this
+    const { node, x, y } = opt
+    const res = graph.getNodesInArea(x, y, 10, 10).find(item => item.id !== node.id)
+
+    if (res) {
+      const view = graph.findViewByCell(res.id)
+      const cid = view.cid
+      if (!appendChildrenHighlightView[view.cid]) {
+        appendChildrenHighlightView[view.cid] = view
+        view.highlight(view.container, {
+          highlighter: HIGHLIGHTER.APPEND_CHILDREN
+        })
+      } else {
+        unhighlight(cid)
+      }
+    } else {
+      unhighlight()
+    }
   }
 
   // 事件监听
   event () {
     const { graph } = this
+    const appendChildrenHighlightView = {}
+    // 关闭高亮
+    const unhighlight = (id = false) => {
+      for (const key of Object.keys(appendChildrenHighlightView)) {
+        if (key !== id) {
+          const view = appendChildrenHighlightView[key]
+          view.unhighlight(view.container, {
+            highlighter: HIGHLIGHTER.APPEND_CHILDREN
+          })
+          delete appendChildrenHighlightView[key]
+        }
+      }
+    }
     // 双击编辑
     graph.on('node:dblclick', options => {
       const { e, node } = options
-      console.log(node.size())
       const wrap = e.target
       this.nodeShowEditorInput(node, wrap)
+    })
+    // 节点拖动操作， 添加节点，排序
+    graph.on('node:move', opt => {
+      graph.startBatch(BATCH.DROP_APPEND_CHILDREN)
+    })
+    graph.on('node:moving', opt => {
+      this.dropNode(opt, appendChildrenHighlightView, unhighlight)
+    })
+    graph.on('node:moved', opt => {
+      const views = Object.values(appendChildrenHighlightView)
+      views.forEach(view => {
+        this.getSelectCell().forEach(node => {
+          // 将此节点在原来的父节点中移除
+          const newNode = node.clone({ deep: true })
+          node.remove()
+          this.appendNode(view.cell, newNode)
+        })
+      })
+      unhighlight()
+      this.updateLayout()
+      graph.stopBatch(BATCH.DROP_APPEND_CHILDREN)
+    })
+    graph.history.on('batch', (opt) => {
+      // code here
     })
   }
 
   // 键盘事件
   keyboardEvent () {
     const { graph } = this
+    const ctrl = isMAC ? 'meta' : 'ctrl'
     // 添加子节点
     graph.bindKey('tab', () => {
       this.appendChildren()
@@ -553,34 +714,46 @@ class MindEditor {
       return false
     })
     // 复制节点
-    graph.bindKey('ctrl+c', () => {
+    graph.bindKey(`${ctrl}+c`, () => {
       this.copySelectNodes()
       return false
     })
     // 剪切
-    graph.bindKey('ctrl+x', () => {
+    graph.bindKey(`${ctrl}+x`, () => {
       this.cutSelectNodes()
       return false
     })
     // 粘贴节点
-    graph.bindKey('ctrl+v', () => {
+    graph.bindKey(`${ctrl}+v`, () => {
       this.pasteNodes()
       return false
     })
     // 后退
-    graph.bindKey('ctrl+z', () => {
+    graph.bindKey(`${ctrl}+z`, () => {
       graph.history.undo()
       return false
     })
     // 前进
-    graph.bindKey('ctrl+shift+z', () => {
+    graph.bindKey(`${ctrl}+shift+z`, () => {
       graph.history.redo()
       return false
     })
     // 全选
-    graph.bindKey('ctrl+a', () => {
+    graph.bindKey(`${ctrl}+a`, () => {
       graph.select(graph.getCells())
       return false
+    })
+    document.addEventListener('keydown', e => {
+      const { key } = e
+      if (key === 'Meta') {
+        graph.container.classList.remove('drag-meta')
+      }
+    })
+    document.addEventListener('keyup', e => {
+      const { key } = e
+      if (key === 'Meta') {
+        graph.container.classList.add('drag-meta')
+      }
     })
   }
 
